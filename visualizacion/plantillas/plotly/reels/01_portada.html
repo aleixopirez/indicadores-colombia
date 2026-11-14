@@ -1,0 +1,27 @@
+{% extends "reels/01_portada.html" %}
+{% block script %}
+  const K = D.kpi;
+  contar(document.getElementById("k-trm"), K.trm, (v) => fmt.pesos(v), 1600, 900);
+  contar(document.getElementById("k-tasa"), K.tasa, (v) => fmt.pct(v, 2), 1600, 900);
+  contar(document.getElementById("k-inf"), K.inflacion, (v) => fmt.pct(v, 1), 1600, 1300);
+  contar(document.getElementById("k-des"), K.desempleo, (v) => fmt.pct(v, 1), 1600, 1300);
+  const var12 = K.trm_variacion;
+  document.getElementById("k-trm-det").innerHTML = var12 == null ? "" :
+    `<span class="${var12 > 0 ? "sube" : "baja"}">${fmt.signo(var12)} %</span> frente a hace un año`;
+  document.getElementById("k-tasa-det").textContent = K.tasa_hace_un_anio == null ? "" :
+    `Hace un año: ${fmt.pct(K.tasa_hace_un_anio, 2)}`;
+  document.getElementById("k-inf-anio").textContent = K.inflacion_anio;
+  document.getElementById("k-des-anio").textContent = K.desempleo_anio;
+  document.getElementById("k-inf-det").textContent = K.inflacion_mundo == null ? "" :
+    `Promedio mundial: ${fmt.pct(K.inflacion_mundo, 1)}`;
+
+  const s = xy(D.trm_12m);
+  setTimeout(() => graficaReel("g-spark", [{
+      type: "scatter", mode: "lines", x: s.x, y: s.y, line: { color: C.acento, width: 4, shape: "spline", smoothing: 0.3 },
+      fill: "tozeroy", fillgradient: { type: "vertical", colorscale: [[0, hexA(C.acento, 0)], [1, hexA(C.acento, 0.3)]] },
+    }], disenoBase(1.4, {
+      margin: { l: 4, r: 24, t: 6, b: 4 },
+      xaxis: { range: [s.x[0], s.x[s.x.length - 1]], tickformat: "%b", nticks: 7, tickfont: { size: 17, color: C.tenue } },
+      yaxis: { range: [Math.min(...s.y) * 0.97, Math.max(...s.y) * 1.02], nticks: 4, tickformat: ",.0f", tickfont: { size: 17 } },
+    }), "linea"), 1100);
+{% endblock %}

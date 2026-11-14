@@ -1,0 +1,24 @@
+<style>
+  {# Tipografía Inter incrustada en base64: se ve igual en cualquier equipo, sin internet #}
+  @font-face { font-family: "Inter"; font-weight: 400; src: url(data:font/woff2;base64,{{ fuentes[400] }}) format("woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 600; src: url(data:font/woff2;base64,{{ fuentes[600] }}) format("woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 800; src: url(data:font/woff2;base64,{{ fuentes[800] }}) format("woff2"); }
+
+  :root {
+    --fondo: {{ c.fondo }}; --tarjeta: {{ c.tarjeta }}; --borde: {{ c.borde }};
+    --texto: {{ c.texto }}; --secundario: {{ c.secundario }}; --tenue: {{ c.tenue }};
+    --acento: {{ c.acento }};
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--fondo); color: var(--texto);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-feature-settings: "tnum" 1;          /* cifras de ancho fijo: no "bailan" */
+    -webkit-font-smoothing: antialiased;
+  }
+  .ceja { color: var(--acento); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+  .secundario { color: var(--secundario); }
+  .tenue { color: var(--tenue); }
+  .acento { color: var(--acento); }
+  .tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 20px; }
+</style>

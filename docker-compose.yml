@@ -1,0 +1,291 @@
+# =============================================================================
+# Infraestructura del pipeline de indicadores económicos
+#
+# Cada paso del curso tiene su propio "perfil" para no encender todo a la vez
+# (pensado para equipos de 8 GB de RAM):
+#
+#   docker compose --profile kafka up -d        # Paso 2: solo Kafka (~700 MB)
+#   docker compose --profile kafka-ui up -d     # Kafka + interfaz web (~1.2 GB)
+#   docker compose --profile kafka down         # apagar (los datos se conservan)
+#
+#   docker compose --profile kafka --profile hdfs up -d    # Paso 3 (~2 GB)
+#   docker compose --profile kafka --profile hdfs down
+#
+#   Paso 4 (Spark se ejecuta bajo demanda y se borra al terminar):
+#   docker compose --profile hdfs up -d              # HDFS encendido, Kafka no hace falta
+#   docker compose run --rm spark                    # corre procesamiento/curar.py
+#
+#   Paso 5 (el perfil hive enciende también HDFS):
+#   docker compose --profile hive up -d
+#   docker compose --profile hive up -d --force-recreate hiveserver2   # recrear solo Hive
+#   docker compose --profile hive down              # apaga Hive y HDFS (datos se conservan)
+#
+#   Paso 6:
+#   docker compose --profile hdfs --profile postgres up -d
+#   docker compose run --rm spark-servir            # HDFS -> PostgreSQL
+#   Power BI: servidor localhost:5432, base indicadores, usuario lector / lector
+#
+# Los pasos siguientes (Hive, PostgreSQL, Airflow) se agregan a este mismo
+# archivo con sus propios perfiles.
+# =============================================================================
+name: pipeline-indicadores
+
+# Configuración común de los trabajos de Spark (ancla YAML, se reutiliza con <<:)
+x-spark-base: &spark-base
+  image: apache/spark:4.0.2-python3
+  profiles: ["spark"]
+  user: root
+  working_dir: /proyecto
+  volumes:
+    - .:/proyecto
+  environment:
+    PYTHONPATH: /proyecto
+    PYTHONDONTWRITEBYTECODE: "1"
+    HADOOP_USER_NAME: root
+    POSTGRES_USER: pipeline
+    POSTGRES_PASSWORD: pipeline
+  ports:
+    - "4040:4040"     # interfaz de Spark mientras corre (usar --service-ports)
+  mem_limit: 1600m
+
+services:
+  # ---------------------------------------------------------------------------
+  # Paso 2 — Apache Kafka 4.1 en modo KRaft (sin Zookeeper), un solo nodo.
+  # Imagen oficial de la Apache Software Foundation.
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:4.1.2
+    container_name: kafka
+    profiles: ["kafka", "kafka-ui", "todo"]
+    ports:
+      - "9092:9092"          # desde Windows (Python en VS Code): localhost:9092
+    environment:
+      # Identidad del nodo. En KRaft un mismo proceso es broker y controller.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # Debe ser un UUID en base64 (22 caracteres). Se genera con:
+      #   docker run --rm apache/kafka:4.1.2 /opt/kafka/bin/kafka-storage.sh random-uuid
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # Tres "puertas" (listeners):
+      #   EXTERNO  -> clientes en Windows (productor de Python)   localhost:9092
+      #   INTERNO  -> otros contenedores (consumidor HDFS, Spark) kafka:19092
+      #   CONTROLLER -> uso interno de KRaft                       kafka:9093
+      KAFKA_LISTENERS: EXTERNO://:9092,INTERNO://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: EXTERNO://localhost:9092,INTERNO://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNO:PLAINTEXT,INTERNO:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # Un solo nodo => factor de replicación 1 en los tópicos internos.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # Los tópicos se crean explícitamente (python -m streaming crear-topicos),
+      # así un error de tipeo no crea un tópico nuevo sin que nadie se entere.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"   # ajustado para equipos de 8 GB
+    volumes:
+      - kafka-data:/var/lib/kafka/data       # los mensajes sobreviven a un reinicio
+    mem_limit: 900m
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Interfaz web para ver tópicos y mensajes: http://localhost:8080
+  # Kafbat UI (Apache 2.0). Opcional: solo con --profile kafka-ui
+  # ---------------------------------------------------------------------------
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest
+    container_name: kafka-ui
+    profiles: ["kafka-ui"]
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: pipeline-indicadores
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      JAVA_OPTS: "-Xms128m -Xmx384m"
+    mem_limit: 512m
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Paso 3 — HDFS (Hadoop 3.4.1): un NameNode y un DataNode.
+  # Imagen oficial de la Apache Software Foundation. Configuración en hadoop.env
+  #   Interfaz web del NameNode: http://localhost:9870
+  # ---------------------------------------------------------------------------
+  namenode:
+    image: apache/hadoop:3.4.1
+    container_name: namenode
+    hostname: namenode
+    profiles: ["hdfs", "hive", "todo"]   # Hive necesita HDFS
+    user: root
+    command: ["hdfs", "namenode"]
+    env_file: hadoop.env
+    environment:
+      # Si esta carpeta no existe, el contenedor formatea el NameNode (solo la
+      # primera vez). Está DENTRO del volumen, así el formato se conserva.
+      ENSURE_NAMENODE_DIR: /hadoop/dfs/name
+      HADOOP_HEAPSIZE_MAX: 384m
+    ports:
+      - "9870:9870"     # interfaz web + WebHDFS (lo usa Python desde Windows)
+      - "8020:8020"     # RPC de HDFS (lo usarán Spark y Hive)
+    volumes:
+      - hdfs-namenode:/hadoop/dfs
+    mem_limit: 640m
+    healthcheck:
+      # "healthy" solo cuando el NameNode salió del modo seguro y acepta escrituras
+      test: ["CMD-SHELL", "hdfs dfsadmin -safemode get 2>/dev/null | grep -q OFF"]
+      interval: 15s
+      timeout: 20s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  datanode:
+    image: apache/hadoop:3.4.1
+    container_name: datanode
+    hostname: datanode
+    profiles: ["hdfs", "hive", "todo"]   # Hive necesita HDFS
+    user: root
+    command: ["hdfs", "datanode"]
+    env_file: hadoop.env
+    environment:
+      HADOOP_HEAPSIZE_MAX: 384m
+    ports:
+      - "9864:9864"     # WebHDFS del DataNode (aquí llegan los bytes al escribir)
+    volumes:
+      - hdfs-datanode:/hadoop/dfs
+    mem_limit: 640m
+    depends_on:
+      - namenode
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Paso 4 — Apache Spark 4.0.2 (PySpark), modo local con 2 núcleos.
+  # Imagen oficial de la Apache Software Foundation.
+  # No queda encendido: `docker compose run --rm spark` ejecuta el trabajo y
+  # el contenedor se borra al terminar. La carpeta del proyecto se monta en
+  # /proyecto, así el código que editas en VS Code es el que corre aquí.
+  # ---------------------------------------------------------------------------
+  spark:
+    <<: *spark-base
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[2]
+      - --driver-memory
+      - 1g
+      # Un solo DataNode: los archivos que escribe Spark con 1 réplica.
+      - --conf
+      - spark.hadoop.dfs.replication=1
+      - procesamiento/curar.py
+
+  # Paso 6: carga la zona curada en PostgreSQL.
+  # --packages descarga el driver JDBC de PostgreSQL desde Maven la primera vez.
+  spark-servir:
+    <<: *spark-base
+    profiles: ["spark", "postgres"]
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[2]
+      - --driver-memory
+      - 1g
+      - --packages
+      - org.postgresql:postgresql:42.7.4
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - procesamiento/servir.py
+
+  # ---------------------------------------------------------------------------
+  # Paso 5 — Apache Hive 4.0.1: HiveServer2 con metastore embebido (Derby).
+  # Imagen oficial de la Apache Software Foundation.
+  #   JDBC:     jdbc:hive2://localhost:10000/
+  #   Web UI:   http://localhost:10002
+  #
+  # El metastore (el catálogo de tablas) vive DENTRO del contenedor y se
+  # pierde al hacer `down`. A propósito: las tablas son EXTERNAS (los datos
+  # están en HDFS) y hive/01_tablas.sql las recrea en segundos.
+  # En producción el metastore va en una base de datos aparte (PostgreSQL).
+  # No usar `stop`/`restart`: al reiniciar el MISMO contenedor, la imagen
+  # intenta crear de nuevo el metastore y falla. Para reiniciar Hive:
+  #   docker compose --profile hive up -d --force-recreate hiveserver2
+  # ---------------------------------------------------------------------------
+  hiveserver2:
+    image: apache/hive:4.0.1
+    container_name: hiveserver2
+    hostname: hiveserver2
+    profiles: ["hive"]
+    environment:
+      SERVICE_NAME: hiveserver2
+      HADOOP_HEAPSIZE: "768"
+      # Sin HADOOP_USER_NAME: Hive se identifica ante Hadoop con el mismo
+      # usuario del proceso (hive). Si fueran distintos, Tez rechaza su
+      # carpeta temporal: "The ownership on the staging directory ... is not
+      # as expected. It is owned by hive".
+      # Sin suplantación (doAs): Hive accede a HDFS con su propio usuario.
+      # Con doAs=true (valor por defecto) Hive actúa "en nombre de" quien se
+      # conecta, y HDFS lo rechaza si no está autorizado con
+      # hadoop.proxyuser.* -> "User: root is not allowed to impersonate root".
+      SERVICE_OPTS: "-Dhive.server2.enable.doAs=false"
+    ports:
+      - "10000:10000"   # JDBC (beeline, DBeaver, Power BI con ODBC)
+      - "10002:10002"   # interfaz web de HiveServer2
+    volumes:
+      - .:/proyecto:ro
+    mem_limit: 1400m
+    depends_on:
+      namenode:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/10000' 2>/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Paso 6 — PostgreSQL 17: zona de servicio para Power BI y los reels.
+  # Imagen oficial de Docker (postgres). Puerto 5432 abierto a Windows.
+  # Credenciales de curso; en producción irían en un archivo .env fuera de git.
+  #   pipeline / pipeline -> lo usa Spark para cargar (lectura y escritura)
+  #   lector   / lector   -> para Power BI (solo lectura)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    profiles: ["postgres", "todo"]
+    environment:
+      POSTGRES_DB: indicadores
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d:ro    # 01_esquema.sql (solo la 1.ª vez)
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipeline -d indicadores"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  kafka-data:
+  hdfs-namenode:
+  hdfs-datanode:

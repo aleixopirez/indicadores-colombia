@@ -1,0 +1,9 @@
+requests>=2.31
+kafka-python>=2.3,<3
+pytest>=8.0
+# Paso 7 · visualización HTML
+jinja2>=3.1
+pg8000>=1.31
+# Paso 7 · captura de reels (PNG/MP4). En Windows usa Microsoft Edge: no hay que descargar navegador.
+playwright>=1.47
+imageio-ffmpeg>=0.5

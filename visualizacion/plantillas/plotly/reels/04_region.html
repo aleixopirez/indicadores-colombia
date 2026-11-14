@@ -1,0 +1,17 @@
+{% extends "reels/04_region.html" %}
+{% block script %}
+  const filas = D.region.slice().reverse();        // Plotly dibuja de abajo hacia arriba: el mayor queda arriba
+  const color = (p) => p === "COL" ? C.acento : p === "WLD" ? C.secundario : C.gris_barra;
+  const x = filas.map((r) => r.valor);
+  graficaReel("g", [{
+    type: "bar", orientation: "h", x,
+    y: filas.map((r) => r.pais === "COL" ? `<b><span style="color:${C.acento}">${r.nombre}</span></b>` : `<b>${r.nombre}</b>`),
+    marker: { color: filas.map((r) => color(r.pais)), cornerradius: 10 }, width: 0.58,
+    text: x, texttemplate: "<b>%{x:.1f} %</b>", textposition: "outside", cliponaxis: false,
+    textfont: { color: C.texto, size: 32, family: FUENTE },
+  }], disenoBase(1.6, {
+    margin: { l: 4, r: 10, t: 0, b: 0 },
+    xaxis: { visible: false, range: [Math.min(0, ...x), Math.max(...x) * 1.25] },
+    yaxis: { autorange: false, range: [-0.6, filas.length - 0.4], showgrid: false, tickfont: { color: C.texto, size: 32 } },
+  }), "barras");
+{% endblock %}

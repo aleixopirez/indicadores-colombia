@@ -1,0 +1,193 @@
+// =============================================================================
+// Medidas DAX del dashboard de indicadores
+//
+// Antes de pegarlas, renombra las tablas en Power BI (clic derecho > Cambiar
+// nombre en el panel Datos):
+//     servicio indicadores          -> indicadores
+//     servicio resumen_gobierno     -> resumen_gobierno
+//     servicio gobiernos            -> gobiernos
+//     servicio catalogo_indicadores -> catalogo
+//
+// Cómo crear cada una: clic derecho en la tabla "indicadores" > Nueva medida,
+// pegar el bloque completo (desde el nombre hasta antes de la siguiente línea
+// de comentarios) y Enter. Luego asigna el formato indicado en "Formato:".
+// =============================================================================
+
+
+// -----------------------------------------------------------------------------
+// Valor  ·  Formato: Número decimal, 2 decimales
+// Usar SIEMPRE esta medida en las gráficas, nunca la columna valor directamente:
+// Power BI suma las columnas numéricas por defecto, y sumar tasas o precios
+// no tiene sentido (la "suma" de la TRM de un año no es nada).
+// -----------------------------------------------------------------------------
+Valor =
+AVERAGE ( indicadores[valor] )
+
+
+// -----------------------------------------------------------------------------
+// Fecha de actualización  ·  Texto  ·  Para el pie de cada página
+// -----------------------------------------------------------------------------
+Fecha de actualización =
+"Datos al " & FORMAT ( MAX ( indicadores[fecha] ), "d \de mmmm \de yyyy", "es-CO" )
+
+
+// -----------------------------------------------------------------------------
+// TRM actual  ·  Formato: Moneda, $ #,0.00
+// Último dato disponible de la serie del Banco de la República.
+// -----------------------------------------------------------------------------
+TRM actual =
+VAR ultima =
+    CALCULATE (
+        MAX ( indicadores[fecha] ),
+        indicadores[indicador] = "trm",
+        indicadores[fuente] = "banrep"
+    )
+RETURN
+    CALCULATE (
+        MAX ( indicadores[valor] ),
+        indicadores[indicador] = "trm",
+        indicadores[fuente] = "banrep",
+        indicadores[fecha] = ultima
+    )
+
+
+// -----------------------------------------------------------------------------
+// TRM hace un año  ·  Formato: Moneda
+// Último dato disponible en o antes de la misma fecha del año anterior
+// (si ese día no hubo TRM, toma el día hábil anterior).
+// -----------------------------------------------------------------------------
+TRM hace un año =
+VAR ultima =
+    CALCULATE (
+        MAX ( indicadores[fecha] ),
+        indicadores[indicador] = "trm",
+        indicadores[fuente] = "banrep"
+    )
+VAR referencia =
+    CALCULATE (
+        MAX ( indicadores[fecha] ),
+        indicadores[indicador] = "trm",
+        indicadores[fuente] = "banrep",
+        indicadores[fecha] <= EDATE ( ultima, -12 )
+    )
+RETURN
+    CALCULATE (
+        MAX ( indicadores[valor] ),
+        indicadores[indicador] = "trm",
+        indicadores[fuente] = "banrep",
+        indicadores[fecha] = referencia
+    )
+
+
+// -----------------------------------------------------------------------------
+// Variación TRM 12 meses  ·  Formato: Porcentaje, 1 decimal
+// -----------------------------------------------------------------------------
+Variación TRM 12 meses =
+DIVIDE ( [TRM actual], [TRM hace un año] ) - 1
+
+
+// -----------------------------------------------------------------------------
+// Tasa del Banco de la República  ·  Formato: Porcentaje, 2 decimales
+// -----------------------------------------------------------------------------
+Tasa BanRep actual =
+VAR ultima =
+    CALCULATE (
+        MAX ( indicadores[fecha] ),
+        indicadores[indicador] = "tasa_politica_monetaria"
+    )
+RETURN
+    CALCULATE (
+        MAX ( indicadores[valor] ),
+        indicadores[indicador] = "tasa_politica_monetaria",
+        indicadores[fecha] = ultima
+    ) / 100
+
+
+// -----------------------------------------------------------------------------
+// Inflación: último año disponible  ·  Formato: Porcentaje, 1 decimal
+// -----------------------------------------------------------------------------
+Año último dato inflación =
+CALCULATE (
+    MAX ( indicadores[anio] ),
+    indicadores[indicador] = "inflacion_anual_pct",
+    indicadores[pais] = "COL"
+)
+
+Inflación Colombia =
+VAR anio = [Año último dato inflación]      // se calcula antes: un filtro no debe llamar medidas
+RETURN
+    CALCULATE (
+        MAX ( indicadores[valor] ),
+        indicadores[indicador] = "inflacion_anual_pct",
+        indicadores[pais] = "COL",
+        indicadores[anio] = anio
+    ) / 100
+
+Inflación mundo =
+VAR anio = [Año último dato inflación]      // se calcula antes: un filtro no debe llamar medidas
+RETURN
+    CALCULATE (
+        MAX ( indicadores[valor] ),
+        indicadores[indicador] = "inflacion_anual_pct",
+        indicadores[pais] = "WLD",
+        indicadores[anio] = anio
+    ) / 100
+
+// Formato: Número decimal, 1 decimal (puntos porcentuales, no %)
+Brecha inflación vs mundo (pp) =
+( [Inflación Colombia] - [Inflación mundo] ) * 100
+
+// Texto para el título de la tarjeta: "Inflación 2025"
+Título inflación =
+"Inflación " & [Año último dato inflación]
+
+
+// -----------------------------------------------------------------------------
+// Desempleo Colombia último año  ·  Formato: Porcentaje, 1 decimal
+// -----------------------------------------------------------------------------
+Desempleo Colombia =
+VAR anio =
+    CALCULATE (
+        MAX ( indicadores[anio] ),
+        indicadores[indicador] = "desempleo_pct",
+        indicadores[pais] = "COL"
+    )
+RETURN
+    CALCULATE (
+        MAX ( indicadores[valor] ),
+        indicadores[indicador] = "desempleo_pct",
+        indicadores[pais] = "COL",
+        indicadores[anio] = anio
+    ) / 100
+
+
+// -----------------------------------------------------------------------------
+// Fuentes  ·  Texto  ·  Cambia según lo que muestre cada página
+// Ponerla en una tarjeta pequeña al pie de cada página.
+// -----------------------------------------------------------------------------
+Fuentes =
+"Fuente: "
+    & CONCATENATEX (
+        VALUES ( indicadores[fuente_cita] ),
+        indicadores[fuente_cita],
+        " · "
+    )
+
+
+// -----------------------------------------------------------------------------
+// Regla de asignación  ·  Texto  ·  Obligatoria en las páginas por gobierno
+// -----------------------------------------------------------------------------
+Nota metodológica =
+"Cada año se asigna al gobierno que gobernó la mayor parte de ese año "
+    & "(en el cargo el 1 de julio). Los indicadores dependen también del "
+    & "contexto económico mundial, no solo del gobierno."
+
+
+// =============================================================================
+// COLUMNA CALCULADA (no medida): en la tabla resumen_gobierno
+// Clic derecho en resumen_gobierno > Nueva columna
+// Luego: seleccionar la columna > Herramientas de columnas > Ordenar por
+// columna > inicio   (para que los gobiernos salgan en orden cronológico)
+// =============================================================================
+Gobierno =
+resumen_gobierno[presidente] & "  ·  " & resumen_gobierno[periodo]

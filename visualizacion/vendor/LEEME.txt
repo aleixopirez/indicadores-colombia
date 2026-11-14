@@ -1,0 +1,5 @@
+Apache ECharts 6.1.0 — https://echarts.apache.org — Licencia Apache 2.0 (ver LICENSE-echarts.txt).
+Se incluye aquí para que el dashboard y los reels funcionen sin internet.
+Plotly.js 4.3.0 (paquete "basic": líneas, barras, tortas) — https://plotly.com/javascript — Licencia MIT (ver LICENSE-plotly.txt).
+plotly-locale-es.js: textos y meses en español de Plotly (paquete plotly.js-locales 4.3.0, MIT).
+Se usa como alternativa a ECharts:  python -m visualizacion generar --motor plotly

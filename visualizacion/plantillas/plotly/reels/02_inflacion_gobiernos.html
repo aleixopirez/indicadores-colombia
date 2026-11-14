@@ -1,0 +1,17 @@
+{% extends "reels/02_inflacion_gobiernos.html" %}
+{% block script %}
+  const filas = D.inflacion_gobierno.slice().reverse();     // Plotly dibuja de abajo hacia arriba
+  const x = filas.map((r) => r.inflacion);
+  graficaReel("g", [{
+    type: "bar", orientation: "h", x, y: filas.map((r) => `<b>${r.corto}</b><br>${r.periodo_corto}`),
+    marker: { color: C.acento, cornerradius: 10 }, width: 0.62,
+    text: x, texttemplate: "<b>%{x:.1f} %</b>", textposition: "outside", cliponaxis: false,
+    textfont: { color: C.texto, size: 30, family: FUENTE },
+  }], disenoBase(1.6, {
+    margin: { l: 4, r: 10, t: 0, b: 0 },
+    xaxis: { visible: false, range: [0, Math.max(...x) * 1.22] },
+    yaxis: { autorange: false, range: [-0.6, filas.length - 0.4], categoryorder: "array", showgrid: false,
+             tickfont: { color: C.texto, size: 27 } },
+  }), "barras");
+
+{% endblock %}

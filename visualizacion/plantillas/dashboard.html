@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indicadores económicos de Colombia y el mundo</title>
+{% include "_estilos.html" %}
+<style>
+  body { padding: 32px clamp(16px, 3vw, 48px) 48px; max-width: 1600px; margin: 0 auto; }
+  header.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+  header.top .ceja { font-size: 13px; }
+  header.top h1 { font-size: clamp(26px, 3vw, 38px); font-weight: 800; letter-spacing: -0.02em; margin-top: 6px; }
+  header.top .corte { font-size: 14px; color: var(--secundario); text-align: right; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .kpi { padding: 18px 20px; }
+  .kpi .etq { font-size: 13px; color: var(--secundario); font-weight: 600; }
+  .kpi .valor { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin-top: 6px; }
+  .kpi .det { font-size: 12.5px; color: var(--tenue); margin-top: 6px; }
+  .kpi.prota .valor { color: var(--acento); }
+  .sube { color: #F87171; } .baja { color: #34D399; }
+  .rejilla { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+  .panel { padding: 18px 20px 12px; display: flex; flex-direction: column; min-width: 0; }
+  .panel h2 { font-size: 16px; font-weight: 600; }
+  .panel .sub { font-size: 13px; color: var(--tenue); margin-top: 4px; }
+  .panel .cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .g { height: 360px; margin-top: 8px; }
+  .g.alta { height: 440px; }
+  .s12 { grid-column: span 12; } .s8 { grid-column: span 8; } .s6 { grid-column: span 6; } .s4 { grid-column: span 4; }
+  @media (max-width: 1000px) { .s8, .s6, .s4 { grid-column: span 12; } }
+  .botones { display: flex; gap: 6px; flex-wrap: wrap; }
+  .botones button, select {
+    background: var(--fondo); color: var(--secundario); border: 1px solid var(--borde);
+    border-radius: 999px; padding: 6px 12px; font: 600 12.5px Inter, sans-serif; cursor: pointer;
+  }
+  .botones button.activo { background: var(--acento); color: #111; border-color: var(--acento); }
+  select { border-radius: 10px; padding: 7px 10px; color: var(--texto); }
+  .nota { font-size: 12px; color: var(--tenue); margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 10px; }
+  th { text-align: right; color: var(--secundario); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+  td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  tr.curso td { color: var(--secundario); font-style: italic; }
+  .tabla { overflow-x: auto; }
+  footer { margin-top: 28px; font-size: 12.5px; color: var(--tenue); line-height: 1.6; display: grid; gap: 6px; }
+  footer b { color: var(--secundario); font-weight: 600; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <div class="ceja">Datos abiertos · Banco de la República · Banco Mundial</div>
+    <h1>Indicadores económicos de Colombia y el mundo</h1>
+  </div>
+  <div class="corte">Datos al <b id="fecha-corte"></b></div>
+</header>
+
+<section class="kpis">
+  <div class="tarjeta kpi prota"><div class="etq">Dólar (TRM)</div><div class="valor" id="k-trm"></div><div class="det" id="k-trm-det"></div></div>
+  <div class="tarjeta kpi"><div class="etq">Variación 12 meses</div><div class="valor" id="k-var"></div><div class="det" id="k-var-det"></div></div>
+  <div class="tarjeta kpi"><div class="etq">Tasa Banco de la República</div><div class="valor" id="k-tasa"></div><div class="det" id="k-tasa-det"></div></div>
+  <div class="tarjeta kpi"><div class="etq">Inflación <span id="k-inf-anio"></span></div><div class="valor" id="k-inf"></div><div class="det" id="k-inf-det"></div></div>
+  <div class="tarjeta kpi"><div class="etq">Desempleo <span id="k-des-anio"></span></div><div class="valor" id="k-des"></div><div class="det">% de la fuerza laboral</div></div>
+</section>
+
+<section class="rejilla">
+  <div class="tarjeta panel s12">
+    <div class="cab"><div><h2>El dólar en Colombia desde 1986</h2>
+      <div class="sub">TRM diaria (pesos por dólar). Franjas: períodos presidenciales. Arrastre la barra inferior para hacer zoom.</div></div></div>
+    <div id="g-trm" class="g alta"></div>
+  </div>
+
+  <div class="tarjeta panel s6">
+    <div class="cab"><div><h2>Comparación por gobierno</h2><div class="sub" id="sub-gob"></div></div>
+      <div class="botones" id="b-gob">
+        <button data-m="inflacion" class="activo">Inflación</button>
+        <button data-m="desempleo">Desempleo</button>
+        <button data-m="pib">Crecimiento PIB</button>
+        <button data-m="trm_variacion">Variación TRM</button>
+      </div></div>
+    <div id="g-gob" class="g"></div>
+    <div class="nota" id="nota-gob"></div>
+  </div>
+
+  <div class="tarjeta panel s6">
+    <div class="cab"><div><h2>Inflación: Colombia frente al mundo</h2><div class="sub">% anual, precios al consumidor</div></div></div>
+    <div id="g-mundo" class="g"></div>
+  </div>
+
+  <div class="tarjeta panel s4">
+    <div class="cab"><div><h2>Inflación en la región</h2><div class="sub" id="sub-region"></div></div></div>
+    <div id="g-region" class="g"></div>
+  </div>
+
+  <div class="tarjeta panel s8">
+    <div class="cab"><div><h2>Tasa de política monetaria</h2><div class="sub">Fijada por la Junta Directiva del Banco de la República, independiente del Gobierno.</div></div></div>
+    <div id="g-tasa" class="g"></div>
+  </div>
+
+  <div class="tarjeta panel s12">
+    <div class="cab"><div><h2>Explorador de indicadores</h2><div class="sub" id="sub-exp"></div></div>
+      <select id="s-exp"></select></div>
+    <div id="g-exp" class="g alta"></div>
+  </div>
+
+  <div class="tarjeta panel s12">
+    <h2>Resumen por gobierno</h2>
+    <div class="sub">Promedios anuales del período. En cursiva: gobierno en curso o con pocos datos.</div>
+    <div class="tabla"><table id="t-resumen"></table></div>
+  </div>
+</section>
+
+<footer>
+  <div><b>Metodología.</b> {{ nota }}</div>
+  <div><b>Fuentes.</b> Banco de la República (TRM, tasa de política monetaria, IBR) vía SDMX y datos.gov.co · Banco Mundial, Indicadores del Desarrollo Mundial (API v2).</div>
+  <div><b>Cómo se construyó.</b> Ingesta en Python → Apache Kafka → HDFS → PySpark → Hive → PostgreSQL → esta página ({{ nombre_libreria }}). Todo con herramientas de código abierto.</div>
+</footer>
+
+<script>{{ libreria }}</script>
+<script>const D = {{ datos }};</script>
+<script>{{ formato }}</script>
+<script>{{ comun }}</script>
+<script>
+const K = D.kpi;
+document.getElementById("fecha-corte").textContent = fmt.fecha(D.fecha_corte);
+const pon = (id, txt, html) => { const e = document.getElementById(id); html ? e.innerHTML = txt : e.textContent = txt; };
+pon("k-trm", fmt.pesos(K.trm, 2));
+pon("k-trm-det", "Hace un año: " + fmt.pesos(K.trm_hace_un_anio, 2));
+pon("k-var", `<span class="${K.trm_variacion > 0 ? "sube" : "baja"}">${fmt.signo(K.trm_variacion)} %</span>`, true);
+pon("k-var-det", K.trm_variacion < 0 ? "El peso se revaluó" : "El peso se devaluó");
+pon("k-tasa", fmt.pct(K.tasa, 2));
+pon("k-tasa-det", "Hace un año: " + fmt.pct(K.tasa_hace_un_anio, 2));
+pon("k-inf", fmt.pct(K.inflacion, 2)); pon("k-inf-anio", K.inflacion_anio);
+pon("k-inf-det", "Mundo: " + fmt.pct(K.inflacion_mundo, 2));
+pon("k-des", fmt.pct(K.desempleo, 2)); pon("k-des-anio", K.desempleo_anio);
+
+// --- Tabla resumen
+const t = document.getElementById("t-resumen");
+t.innerHTML = `<thead><tr><th>Presidente</th><th>Período</th><th>Años con datos</th><th>Inflación</th><th>Desempleo</th><th>PIB</th><th>TRM inicial</th><th>TRM final</th><th>Var. TRM</th><th>Tasa BanRep</th></tr></thead><tbody>` +
+  D.resumen.slice().reverse().map((r) => `<tr class="${r.en_curso || r.anios < 3 ? "curso" : ""}">
+    <td>${r.presidente}</td><td>${r.periodo}</td><td>${r.anios}</td>
+    <td>${fmt.pct(r.inflacion, 1)}</td><td>${fmt.pct(r.desempleo, 1)}</td><td>${fmt.pct(r.pib, 1)}</td>
+    <td>${fmt.pesos(r.trm_inicial)}</td><td>${fmt.pesos(r.trm_final)}</td>
+    <td>${r.trm_variacion == null ? "—" : fmt.signo(r.trm_variacion) + " %"}</td><td>${fmt.pct(r.tasa, 2)}</td></tr>`).join("") + "</tbody>";
+
+{% block graficas %}
+fuentesListas.then(() => {
+const graficas = [];
+function grafica(id, opcion) {
+  const g = iniciar(document.getElementById(id));
+  g.setOption(Object.assign(estiloBase(1), opcion));
+  graficas.push(g);
+  return g;
+}
+window.addEventListener("resize", () => graficas.forEach((g) => g.resize()));
+
+// --- TRM con franjas de gobiernos
+grafica("g-trm", {
+  tooltip: { trigger: "axis", valueFormatter: (v) => fmt.pesos(v, 2) },
+  grid: { left: 8, right: 16, top: 70, bottom: 56, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+  xAxis: ejeTiempo(1),
+  yAxis: ejeValor(1, (v) => fmt.num(v), { min: 0 }),
+  dataZoom: [{ type: "inside" }, { type: "slider", height: 22, bottom: 8,
+    borderColor: C.borde, fillerColor: "rgba(245,183,0,0.12)", textStyle: { color: C.tenue },
+    dataBackground: { lineStyle: { color: C.tenue }, areaStyle: { color: C.borde } } }],
+  series: [{ name: "TRM", type: "line", data: D.trm_diaria, showSymbol: false, sampling: "lttb",
+    lineStyle: { color: C.acento, width: 1.8 }, areaStyle: { color: gradiente(C.acento, 0.18) },
+    markArea: franjasGobierno(D.gobiernos[0].inicio, 1, true) }],
+});
+
+// --- Comparación por gobierno (con selector de métrica)
+const METRICAS = {
+  inflacion: { nombre: "Inflación promedio", f: (v) => fmt.pct(v, 1) },
+  desempleo: { nombre: "Desempleo promedio", f: (v) => fmt.pct(v, 1) },
+  pib: { nombre: "Crecimiento del PIB promedio", f: (v) => fmt.pct(v, 1) },
+  trm_variacion: { nombre: "Variación de la TRM en el período", f: (v) => fmt.signo(v) + " %" },
+};
+const gGob = grafica("g-gob", {});
+function dibujarGobiernos(m) {
+  const filas = D.resumen.filter((r) => r[m] != null && (m === "trm_variacion" || r.anios >= 3));
+  pon("sub-gob", METRICAS[m].nombre + " por período presidencial");
+  pon("nota-gob", m === "trm_variacion" ? "TRM inicial vs. final de cada período." : "Solo gobiernos con al menos 3 años de datos.");
+  gGob.setOption({
+    tooltip: { trigger: "axis", formatter: (p) => `${filas[p[0].dataIndex].presidente}<br>${filas[p[0].dataIndex].periodo}: <b>${METRICAS[m].f(p[0].value)}</b>` },
+    grid: { left: 8, right: 8, top: 30, bottom: 8, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+    xAxis: { type: "category", data: filas.map((r) => r.corto + "\n" + r.periodo_corto),
+      axisLine: { lineStyle: { color: C.borde } }, axisTick: { show: false },
+      axisLabel: { color: C.secundario, fontSize: 11.5, interval: 0, lineHeight: 15 } },
+    yAxis: ejeValor(1, (v) => fmt.num(v) + " %", { scale: false }),
+    series: [{ type: "bar", barWidth: "58%", data: filas.map((r) => r[m]),
+      itemStyle: { color: C.acento, borderRadius: [6, 6, 0, 0] },
+      label: { show: true, position: "top", color: C.texto, fontSize: 11.5, fontWeight: 600, formatter: (p) => fmt.num(p.value, 1) } }],
+  }, { replaceMerge: ["series", "xAxis"] });
+}
+document.querySelectorAll("#b-gob button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("#b-gob button").forEach((x) => x.classList.toggle("activo", x === b));
+  dibujarGobiernos(b.dataset.m);
+}));
+dibujarGobiernos("inflacion");
+
+// --- Colombia vs mundo
+grafica("g-mundo", {
+  tooltip: { trigger: "axis", valueFormatter: (v) => fmt.pct(v, 2) },
+  legend: { top: 0, right: 0, textStyle: { color: C.secundario }, icon: "roundRect" },
+  grid: { left: 8, right: 16, top: 36, bottom: 8, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+  xAxis: { type: "category", boundaryGap: false, data: D.inflacion_col_mundo.COL.map((x) => x[0]),
+    axisLine: { lineStyle: { color: C.borde } }, axisTick: { show: false }, axisLabel: { color: C.secundario } },
+  yAxis: ejeValor(1, (v) => v + " %", { scale: false }),
+  series: [
+    { name: "Colombia", type: "line", data: D.inflacion_col_mundo.COL.map((x) => x[1]), showSymbol: false,
+      lineStyle: { color: C.acento, width: 3 }, itemStyle: { color: C.acento } },
+    { name: "Mundo", type: "line", showSymbol: false, lineStyle: { color: C.secundario, width: 2, type: "dashed" }, itemStyle: { color: C.secundario },
+      data: D.inflacion_col_mundo.COL.map((x) => (D.inflacion_col_mundo.WLD.find((w) => w[0] === x[0]) || [0, null])[1]) },
+  ],
+});
+
+// --- Región
+const reg = D.region.slice().reverse();
+pon("sub-region", `% anual, ${K.inflacion_anio}`);
+grafica("g-region", {
+  tooltip: { show: false },
+  grid: { left: 8, right: 60, top: 8, bottom: 8, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+  xAxis: { type: "value", show: false },
+  yAxis: { type: "category", data: reg.map((r) => r.nombre), axisLine: { show: false }, axisTick: { show: false },
+    axisLabel: { color: (v, i) => reg[i].pais === "COL" ? C.acento : C.texto, fontSize: 13, fontWeight: 600 } },
+  series: [{ type: "bar", barWidth: "60%",
+    data: reg.map((r) => ({ value: r.valor, itemStyle: { borderRadius: [0, 6, 6, 0],
+      color: r.pais === "COL" ? C.acento : r.pais === "WLD" ? C.secundario : C.gris_barra } })),
+    label: { show: true, position: "right", color: C.texto, fontWeight: 600, formatter: (p) => fmt.pct(p.value, 1) } }],
+});
+
+// --- Tasa de política monetaria
+grafica("g-tasa", {
+  tooltip: { trigger: "axis", valueFormatter: (v) => fmt.pct(v, 2) },
+  grid: { left: 8, right: 16, top: 20, bottom: 8, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+  xAxis: ejeTiempo(1, { max: D.fecha_corte }),
+  yAxis: ejeValor(1, (v) => v + " %", { min: 0 }),
+  series: [{ name: "Tasa", type: "line", step: "end", showSymbol: false,
+    data: D.tasa_politica.concat([[D.fecha_corte, K.tasa]]),
+    lineStyle: { color: C.serie[0], width: 2.5 }, areaStyle: { color: gradiente(C.serie[0], 0.18) } }],
+});
+
+// --- Explorador
+const sel = document.getElementById("s-exp");
+Object.entries(D.explorador).forEach(([k, v]) => sel.add(new Option(v.nombre, k)));
+sel.value = D.explorador.crecimiento_pib_pct ? "crecimiento_pib_pct" : sel.options[0].value;
+const gExp = grafica("g-exp", {});
+function dibujarExplorador(k) {
+  const ind = D.explorador[k];
+  pon("sub-exp", `${ind.unidad} · Fuente: ${D.fuentes[k] || "Banco Mundial"}. Haga clic en la leyenda para ocultar o mostrar países.`);
+  const grande = Math.max(...Object.values(ind.series).flat().map((x) => Math.abs(x[1]))) >= 1e6;
+  const f = (v) => grande ? fmt.num(v / 1e9, 1) + " mil M" : fmt.num(v, 1);
+  let i = 0;
+  gExp.setOption({
+    tooltip: { trigger: "axis", valueFormatter: f },
+    legend: { top: 0, textStyle: { color: C.secundario }, icon: "roundRect" },
+    grid: { left: 8, right: 16, top: 44, bottom: 8, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+    xAxis: { type: "value", min: "dataMin", max: "dataMax", axisLabel: { color: C.secundario, formatter: (v) => v },
+      axisLine: { lineStyle: { color: C.borde } }, splitLine: { show: false } },
+    yAxis: ejeValor(1, f),
+    series: Object.entries(ind.series).map(([p, datos]) => {
+      const col = p === "COL";
+      const color = col ? C.acento : C.serie[i++ % C.serie.length];
+      return { name: D.paises[p] || p, type: "line", data: datos, showSymbol: false, z: col ? 10 : 2,
+        lineStyle: { color, width: col ? 3.5 : 1.6, opacity: col ? 1 : 0.8 }, itemStyle: { color } };
+    }),
+  }, { replaceMerge: ["series"] });
+}
+sel.addEventListener("change", () => dibujarExplorador(sel.value));
+dibujarExplorador(sel.value);
+
+window.__listo = true;
+});
+{% endblock %}
+</script>
+</body>
+</html>

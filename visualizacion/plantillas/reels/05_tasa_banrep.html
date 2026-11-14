@@ -1,0 +1,35 @@
+{% extends "_reel_base.html" %}
+{% block titulo_pagina %}Tasa del Banco de la República{% endblock %}
+{% block estilos %}
+  .cifras { display: flex; gap: 40px; margin-bottom: 18px; }
+  .cifra .etq { font-size: 22px; color: var(--secundario); font-weight: 600; }
+  .cifra .v { font-size: 56px; font-weight: 800; letter-spacing: -0.02em; }
+  #g { height: 660px; }
+{% endblock %}
+{% block ceja %}Política monetaria · desde {{ anio_tasa }}{% endblock %}
+{% block titulo %}La tasa de interés del Banco de la República{% endblock %}
+{% block subtitulo %}Tasa de política monetaria: lo que cuesta el dinero en la economía.{% endblock %}
+{% block contenido %}
+<div class="cifras entra d3">
+  <div class="cifra"><div class="etq">Hoy</div><div class="v acento" id="c-hoy">—</div></div>
+  <div class="cifra"><div class="etq">Hace un año</div><div class="v" id="c-antes">—</div></div>
+</div>
+<div id="g"></div>
+{% endblock %}
+{% block nota %}<div class="nota tenue">La fija la Junta Directiva del Banco de la República, independiente del Gobierno.</div>{% endblock %}
+{% block fuente %}Banco de la República, tasa de intervención (SDMX DF_CBR_DAILY_HIST){% endblock %}
+{% block script %}
+  contar(document.getElementById("c-hoy"), D.kpi.tasa, (v) => fmt.pct(v, 2), 1600, 900);
+  contar(document.getElementById("c-antes"), D.kpi.tasa_hace_un_anio, (v) => fmt.pct(v, 2), 1600, 900);
+  const datos = D.tasa_politica.concat([[D.fecha_corte, D.kpi.tasa]]);
+  graficaReel("g", {
+    tooltip: { show: false },
+    grid: { left: 4, right: 10, top: 20, bottom: 0, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+    xAxis: ejeTiempo(1.6, { max: D.fecha_corte,
+      axisLabel: { color: C.tenue, fontSize: 19, formatter: "{yyyy}", hideOverlap: true } }),
+    yAxis: ejeValor(1.6, (v) => v + " %", { min: 0, axisLabel: { color: C.tenue, fontSize: 19, formatter: (v) => v + " %" } }),
+    series: [{ type: "line", step: "end", data: datos, showSymbol: false,
+      lineStyle: { color: "#38BDF8", width: 4 }, areaStyle: { color: gradiente("#38BDF8", 0.22) },
+      animationDuration: 3000 }],
+  });
+{% endblock %}

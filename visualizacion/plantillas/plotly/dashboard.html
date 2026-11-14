@@ -1,0 +1,125 @@
+{% extends "dashboard.html" %}
+{% block graficas %}
+fuentesListas.then(() => {
+const pintar = (id, trazas, diseno) => Plotly.newPlot(id, trazas, diseno, CONFIG_DASH);
+
+// --- TRM con franjas de gobiernos y control de rango abajo
+const trm = xy(D.trm_diaria);
+const franjas = franjasGobierno(D.gobiernos[0].inicio, 1, true);
+pintar("g-trm", [{
+  type: "scatter",
+  mode: "lines", name: "TRM", x: trm.x, y: trm.y,
+  line: { color: C.acento, width: 1.6 },
+  fill: "tozeroy", fillcolor: hexA(C.acento, 0.10),
+  hovertemplate: "%{x|%d %b %Y}<br><b>$%{y:,.2f}</b><extra></extra>",
+}], disenoBase(1, {
+  margin: { t: 10 }, hovermode: "x",
+  shapes: franjas.shapes, annotations: franjas.annotations,
+  xaxis: { type: "date", rangeslider: { visible: true, thickness: 0.08, bgcolor: C.fondo, bordercolor: C.borde },
+           range: [D.gobiernos[0].inicio, D.fecha_corte] },
+  yaxis: { tickformat: ",.0f", rangemode: "tozero", fixedrange: false },
+}));
+
+// --- Comparación por gobierno (con selector de métrica)
+const METRICAS = {
+  inflacion: { nombre: "Inflación promedio", sufijo: " %" },
+  desempleo: { nombre: "Desempleo promedio", sufijo: " %" },
+  pib: { nombre: "Crecimiento del PIB promedio", sufijo: " %" },
+  trm_variacion: { nombre: "Variación de la TRM en el período", sufijo: " %" },
+};
+function dibujarGobiernos(m) {
+  const filas = D.resumen.filter((r) => r[m] != null && (m === "trm_variacion" || r.anios >= 3));
+  pon("sub-gob", METRICAS[m].nombre + " por período presidencial");
+  pon("nota-gob", m === "trm_variacion" ? "TRM inicial vs. final de cada período." : "Solo gobiernos con al menos 3 años de datos.");
+  Plotly.react("g-gob", [{
+    type: "bar", x: filas.map((r) => `${r.corto}<br>${r.periodo_corto}`), y: filas.map((r) => r[m]),
+    customdata: filas.map((r) => [r.presidente, r.periodo]),
+    marker: { color: C.acento, cornerradius: 6 }, width: 0.6,
+    texttemplate: "%{y:.1f}", textposition: "outside", cliponaxis: false,
+    textfont: { color: C.texto, size: 11.5 },
+    hovertemplate: "%{customdata[0]}<br>%{customdata[1]}: <b>%{y:.1f}" + METRICAS[m].sufijo + "</b><extra></extra>",
+  }], disenoBase(1, {
+    margin: { t: 24 }, hovermode: "closest",
+    xaxis: { tickfont: { size: 11.5 }, fixedrange: true, type: "category" },
+    yaxis: { ticksuffix: " %", fixedrange: true, zeroline: true, zerolinecolor: C.borde },
+  }), CONFIG_DASH);
+}
+document.querySelectorAll("#b-gob button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("#b-gob button").forEach((x) => x.classList.toggle("activo", x === b));
+  dibujarGobiernos(b.dataset.m);
+}));
+dibujarGobiernos("inflacion");
+
+// --- Colombia vs mundo
+const col = D.inflacion_col_mundo.COL, wld = D.inflacion_col_mundo.WLD;
+pintar("g-mundo", [
+  { type: "scatter", mode: "lines", name: "Colombia", x: col.map((p) => p[0]), y: col.map((p) => p[1]),
+    line: { color: C.acento, width: 3 }, hovertemplate: "%{y:.2f} %" },
+  { type: "scatter", mode: "lines", name: "Mundo", x: wld.map((p) => p[0]), y: wld.map((p) => p[1]),
+    line: { color: C.secundario, width: 2, dash: "dash" }, hovertemplate: "%{y:.2f} %" },
+], disenoBase(1, {
+  showlegend: true, legend: { orientation: "h", x: 1, xanchor: "right", y: 1.12, font: { color: C.secundario } },
+  margin: { t: 30 },
+  xaxis: { tickformat: "d", fixedrange: true },
+  yaxis: { ticksuffix: " %", rangemode: "tozero", fixedrange: true },
+}));
+
+// --- Región
+const reg = D.region.slice().reverse();
+pon("sub-region", `% anual, ${K.inflacion_anio}`);
+pintar("g-region", [{
+  type: "bar", orientation: "h", x: reg.map((r) => r.valor),
+  y: reg.map((r) => r.pais === "COL" ? `<b><span style="color:${C.acento}">${r.nombre}</span></b>` : `<b>${r.nombre}</b>`),
+  marker: { color: reg.map((r) => r.pais === "COL" ? C.acento : r.pais === "WLD" ? C.secundario : C.gris_barra), cornerradius: 6 },
+  width: 0.6, texttemplate: "<b>%{x:.1f} %</b>", textposition: "outside", cliponaxis: false,
+  textfont: { color: C.texto }, hoverinfo: "skip",
+}], disenoBase(1, {
+  margin: { r: 10 },
+  xaxis: { visible: false, range: [0, Math.max(...reg.map((r) => r.valor)) * 1.3], fixedrange: true },
+  yaxis: { showgrid: false, tickfont: { color: C.texto, size: 13 }, fixedrange: true },
+}));
+
+// --- Tasa de política monetaria
+const tasa = xy(D.tasa_politica.concat([[D.fecha_corte, K.tasa]]));
+pintar("g-tasa", [{
+  type: "scatter", mode: "lines", x: tasa.x, y: tasa.y, line: { color: C.serie[0], width: 2.5, shape: "hv" },
+  fill: "tozeroy", fillcolor: hexA(C.serie[0], 0.10),
+  hovertemplate: "%{x|%d %b %Y}<br><b>%{y:.2f} %</b><extra></extra>",
+}], disenoBase(1, {
+  hovermode: "x",
+  xaxis: { type: "date" },
+  yaxis: { ticksuffix: " %", rangemode: "tozero" },
+}));
+
+// --- Explorador (clic en la leyenda para ocultar/mostrar; doble clic aísla un país)
+const sel = document.getElementById("s-exp");
+Object.entries(D.explorador).forEach(([k, v]) => sel.add(new Option(v.nombre, k)));
+sel.value = D.explorador.crecimiento_pib_pct ? "crecimiento_pib_pct" : sel.options[0].value;
+function dibujarExplorador(k) {
+  const ind = D.explorador[k];
+  pon("sub-exp", `${ind.unidad} · Fuente: ${D.fuentes[k] || "Banco Mundial"}. Clic en la leyenda para ocultar o mostrar; doble clic para aislar un país.`);
+  const grande = Math.max(...Object.values(ind.series).flat().map((x) => Math.abs(x[1]))) >= 1e6;
+  let i = 0;
+  const trazas = Object.entries(ind.series).map(([p, datos]) => {
+    const esCol = p === "COL";
+    const color = esCol ? C.acento : C.serie[i++ % C.serie.length];
+    return { type: "scatter", mode: "lines", name: D.paises[p] || p,
+      x: datos.map((d) => d[0]), y: datos.map((d) => grande ? d[1] / 1e9 : d[1]),
+      line: { color, width: esCol ? 3.5 : 1.6 }, opacity: esCol ? 1 : 0.8,
+      hovertemplate: grande ? "%{y:,.1f} mil M" : "%{y:,.1f}" };
+  });
+  // Colombia al final para que quede dibujada encima
+  trazas.sort((a, b) => (a.name === "Colombia") - (b.name === "Colombia"));
+  Plotly.react("g-exp", trazas, disenoBase(1, {
+    showlegend: true, legend: { orientation: "h", y: 1.1, x: 0.5, xanchor: "center", font: { color: C.secundario }, traceorder: "normal" },
+    margin: { t: 40 },
+    xaxis: { tickformat: "d" },
+    yaxis: { tickformat: ",.1f", ticksuffix: grande ? " mil M" : "" },
+  }), CONFIG_DASH);
+}
+sel.addEventListener("change", () => dibujarExplorador(sel.value));
+dibujarExplorador(sel.value);
+
+window.__listo = true;
+});
+{% endblock %}

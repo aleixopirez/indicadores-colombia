@@ -1,0 +1,35 @@
+{% extends "_reel_base.html" %}
+{% block titulo_pagina %}El dólar en Colombia{% endblock %}
+{% block estilos %}
+  .cifras { display: flex; gap: 40px; margin-bottom: 18px; }
+  .cifra .etq { font-size: 22px; color: var(--secundario); font-weight: 600; }
+  .cifra .v { font-size: 56px; font-weight: 800; letter-spacing: -0.02em; }
+  #g { height: 660px; }
+{% endblock %}
+{% block ceja %}Tasa de cambio · 1986–{{ anio_corte }}{% endblock %}
+{% block titulo %}El dólar a través de {{ n_gobiernos }} gobiernos{% endblock %}
+{% block subtitulo %}Pesos por dólar (TRM), promedio mensual. Cada franja es un período presidencial.{% endblock %}
+{% block contenido %}
+<div class="cifras entra d3">
+  <div class="cifra"><div class="etq">Agosto de 1986</div><div class="v" id="c-ini">—</div></div>
+  <div class="cifra"><div class="etq">Hoy</div><div class="v acento" id="c-hoy">—</div></div>
+</div>
+<div id="g"></div>
+{% endblock %}
+{% block nota %}<div class="nota tenue">La TRM depende sobre todo de factores externos (petróleo, tasas de EE. UU., aversión al riesgo); las franjas solo ubican cada dato en el tiempo.</div>{% endblock %}
+{% block fuente %}Banco de la República, TRM (SDMX DF_TRM_DAILY_HIST){% endblock %}
+{% block script %}
+  contar(document.getElementById("c-ini"), D.trm_diaria[0][1], (v) => fmt.pesos(v), 1200, 900);
+  contar(document.getElementById("c-hoy"), D.kpi.trm, (v) => fmt.pesos(v), 2600, 900);
+  graficaReel("g", {
+    tooltip: { show: false },
+    grid: { left: 4, right: 10, top: 20, bottom: 0, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+    xAxis: ejeTiempo(1.6, { min: D.gobiernos[0].inicio, max: D.fecha_corte,
+      axisLabel: { color: C.tenue, fontSize: 19, formatter: "{yyyy}", hideOverlap: true } }),
+    yAxis: ejeValor(1.6, (v) => fmt.num(v), { min: 0, axisLabel: { color: C.tenue, fontSize: 19, formatter: (v) => fmt.num(v) } }),
+    series: [{ type: "line", data: D.trm_mensual, showSymbol: false,
+      lineStyle: { color: C.acento, width: 4 }, areaStyle: { color: gradiente(C.acento, 0.25) },
+      markArea: franjasGobierno(D.gobiernos[0].inicio, 1.7),
+      animationDuration: 3000 }],
+  });
+{% endblock %}

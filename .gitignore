@@ -1,0 +1,25 @@
+# --- Python / entorno
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# --- Datos: se regeneran con el pipeline (los respaldos van al disco externo)
+data/
+datos_servicio/
+
+# --- Salidas generadas (dashboard, reels PNG/MP4). Lo publicado va en docs/
+salida/
+
+# --- Secretos y configuración local
+.env
+*.env.local
+
+# --- Power BI: archivo de respaldo temporal
+*.pbix.bak
+~$*
+
+# --- Sistema
+.DS_Store
+Thumbs.db
+desktop.ini

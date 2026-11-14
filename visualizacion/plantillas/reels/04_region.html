@@ -1,0 +1,26 @@
+{% extends "_reel_base.html" %}
+{% block titulo_pagina %}Colombia frente a la región{% endblock %}
+{% block ceja %}Inflación {{ anio_inflacion }}{% endblock %}
+{% block titulo %}Colombia frente a la región{% endblock %}
+{% block subtitulo %}Inflación anual de precios al consumidor, {{ anio_inflacion }}.{% endblock %}
+{% block contenido %}<div id="g" class="grafica"></div>{% endblock %}
+{% block nota %}<div class="nota tenue">Se muestran los países con dato publicado para {{ anio_inflacion }}.</div>{% endblock %}
+{% block fuente %}Banco Mundial, Indicadores del Desarrollo Mundial (FP.CPI.TOTL.ZG){% endblock %}
+{% block script %}
+  const filas = D.region.slice().reverse();     // mayor arriba
+  const color = (p) => p === "COL" ? C.acento : p === "WLD" ? C.secundario : C.gris_barra;
+  graficaReel("g", {
+    tooltip: { show: false },
+    grid: { left: 4, right: 120, top: 0, bottom: 0, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+    xAxis: { type: "value", show: false, min: (v) => Math.min(0, v.min) },
+    yAxis: { type: "category", data: filas.map((r) => r.nombre),
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { fontSize: 32, fontWeight: 600,
+        color: (v, i) => filas[i].pais === "COL" ? C.acento : C.texto } },
+    series: [{ type: "bar", barWidth: "58%",
+      data: filas.map((r) => ({ value: r.valor, itemStyle: { color: color(r.pais), borderRadius: [0, 10, 10, 0] } })),
+      label: { show: true, position: "right", fontSize: 32, fontWeight: 800, color: C.texto,
+        formatter: (p) => fmt.pct(p.value, 1) },
+      animationDelay: (i) => (filas.length - 1 - i) * 160 }],
+  });
+{% endblock %}

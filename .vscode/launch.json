@@ -1,0 +1,50 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Ingesta: TODO",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingesta",
+      "args": ["-v", "todo"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Ingesta: TRM (datos.gov.co) último mes",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingesta",
+      "args": ["trm", "--desde", "2026-10-01"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Ingesta: Banco Mundial",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingesta",
+      "args": ["banco_mundial", "--desde", "1990"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Ingesta: Banco de la República",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingesta",
+      "args": ["banrep", "--desde", "2015"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Banco de la República: listar flujos",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingesta",
+      "args": ["banrep", "--listar"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}

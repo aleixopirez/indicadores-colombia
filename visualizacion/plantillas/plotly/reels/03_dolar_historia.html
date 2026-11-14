@@ -1,0 +1,17 @@
+{% extends "reels/03_dolar_historia.html" %}
+{% block script %}
+  contar(document.getElementById("c-ini"), D.trm_diaria[0][1], (v) => fmt.pesos(v), 1200, 900);
+  contar(document.getElementById("c-hoy"), D.kpi.trm, (v) => fmt.pesos(v), 2600, 900);
+  const s = xy(D.trm_mensual);
+  const desde = D.gobiernos[0].inicio;
+  const franjas = franjasGobierno(desde, 1.7);
+  graficaReel("g", [{
+    type: "scatter", mode: "lines", x: s.x, y: s.y, line: { color: C.acento, width: 4 },
+    fill: "tozeroy", fillgradient: { type: "vertical", colorscale: [[0, hexA(C.acento, 0)], [1, hexA(C.acento, 0.25)]] },
+  }], disenoBase(1.6, {
+    margin: { l: 4, r: 10, t: 10, b: 4 },
+    shapes: franjas.shapes, annotations: franjas.annotations,
+    xaxis: { range: [desde, D.fecha_corte], tickformat: "%Y", nticks: 6, tickfont: { size: 19, color: C.tenue } },
+    yaxis: { range: [0, Math.max(...s.y) * 1.08], tickformat: ",.0f", tickfont: { size: 19 } },
+  }), "linea");
+{% endblock %}

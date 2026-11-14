@@ -1,0 +1,72 @@
+{% extends "_reel_base.html" %}
+{% block titulo_pagina %}Colombia en cifras{% endblock %}
+{% block estilos %}
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .kpi { padding: 30px 30px 26px; height: 250px; display: flex; flex-direction: column; }
+  .kpi .etq { font-size: 24px; font-weight: 600; color: var(--secundario); }
+  .kpi .valor { font-size: 74px; font-weight: 800; letter-spacing: -0.03em; margin-top: 14px; }
+  .kpi .det { font-size: 21px; color: var(--tenue); margin-top: auto; line-height: 1.3; }
+  .kpi.prota { border-color: rgba(245,183,0,.5); }
+  .kpi.prota .valor { color: var(--acento); }
+  .sube { color: #F87171; } .baja { color: #34D399; }
+  .spark { margin-top: 26px; padding: 22px 26px 8px; height: 250px; }
+  .spark .etq { font-size: 22px; color: var(--secundario); font-weight: 600; }
+  #g-spark { height: 180px; }
+{% endblock %}
+{% block ceja %}Indicadores económicos{% endblock %}
+{% block titulo %}Colombia en cifras{% endblock %}
+{% block subtitulo %}Lo que dicen hoy los datos abiertos del Banco de la República y el Banco Mundial.{% endblock %}
+{% block contenido %}
+<div class="kpis">
+  <div class="tarjeta kpi prota entra d3">
+    <div class="etq">Dólar (TRM)</div>
+    <div class="valor" id="k-trm">—</div>
+    <div class="det" id="k-trm-det"></div>
+  </div>
+  <div class="tarjeta kpi entra d3">
+    <div class="etq">Tasa del Banco de la República</div>
+    <div class="valor" id="k-tasa">—</div>
+    <div class="det" id="k-tasa-det"></div>
+  </div>
+  <div class="tarjeta kpi entra d4">
+    <div class="etq">Inflación <span id="k-inf-anio"></span></div>
+    <div class="valor" id="k-inf">—</div>
+    <div class="det" id="k-inf-det"></div>
+  </div>
+  <div class="tarjeta kpi entra d4">
+    <div class="etq">Desempleo <span id="k-des-anio"></span></div>
+    <div class="valor" id="k-des">—</div>
+    <div class="det">Porcentaje de la fuerza laboral</div>
+  </div>
+</div>
+<div class="tarjeta spark entra d5">
+  <div class="etq">El dólar en los últimos 12 meses</div>
+  <div id="g-spark"></div>
+</div>
+{% endblock %}
+{% block fuente %}Banco de la República (TRM, tasa) · Banco Mundial (inflación, desempleo){% endblock %}
+{% block script %}
+  const K = D.kpi;
+  contar(document.getElementById("k-trm"), K.trm, (v) => fmt.pesos(v), 1600, 900);
+  contar(document.getElementById("k-tasa"), K.tasa, (v) => fmt.pct(v, 2), 1600, 900);
+  contar(document.getElementById("k-inf"), K.inflacion, (v) => fmt.pct(v, 1), 1600, 1300);
+  contar(document.getElementById("k-des"), K.desempleo, (v) => fmt.pct(v, 1), 1600, 1300);
+  const var12 = K.trm_variacion;
+  document.getElementById("k-trm-det").innerHTML = var12 == null ? "" :
+    `<span class="${var12 > 0 ? "sube" : "baja"}">${fmt.signo(var12)} %</span> frente a hace un año`;
+  document.getElementById("k-tasa-det").textContent = K.tasa_hace_un_anio == null ? "" :
+    `Hace un año: ${fmt.pct(K.tasa_hace_un_anio, 2)}`;
+  document.getElementById("k-inf-anio").textContent = K.inflacion_anio;
+  document.getElementById("k-des-anio").textContent = K.desempleo_anio;
+  document.getElementById("k-inf-det").textContent = K.inflacion_mundo == null ? "" :
+    `Promedio mundial: ${fmt.pct(K.inflacion_mundo, 1)}`;
+
+  fuentesListas.then(() => setTimeout(() => iniciar(document.getElementById("g-spark")).setOption(Object.assign(estiloBase(1.5), {
+    grid: { left: 4, right: 24, top: 10, bottom: 0, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+    tooltip: { show: false },
+    xAxis: ejeTiempo(1.5, { axisLabel: { color: C.tenue, fontSize: 17, formatter: "{MMM}", hideOverlap: true } }),
+    yAxis: ejeValor(1.5, (v) => fmt.num(v), { splitNumber: 3, axisLabel: { color: C.tenue, fontSize: 17, formatter: (v) => fmt.num(v) } }),
+    series: [{ type: "line", data: D.trm_12m, showSymbol: false, smooth: 0.2,
+      lineStyle: { color: C.acento, width: 4 }, areaStyle: { color: gradiente(C.acento, 0.30) } }],
+  })), 1100));
+{% endblock %}

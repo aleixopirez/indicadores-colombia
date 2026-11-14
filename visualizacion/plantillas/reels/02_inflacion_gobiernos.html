@@ -1,0 +1,25 @@
+{% extends "_reel_base.html" %}
+{% block titulo_pagina %}Inflación por gobierno{% endblock %}
+{% block ceja %}Colombia · {{ primero }}–{{ ultimo }}{% endblock %}
+{% block titulo %}¿Cuánto subieron los precios en cada gobierno?{% endblock %}
+{% block subtitulo %}Inflación anual promedio durante cada período presidencial.{% endblock %}
+{% block contenido %}<div id="g" class="grafica"></div>{% endblock %}
+{% block nota %}<div class="nota tenue">{{ nota }} Solo gobiernos con al menos 3 años de datos.</div>{% endblock %}
+{% block fuente %}Banco Mundial, Indicadores del Desarrollo Mundial (FP.CPI.TOTL.ZG){% endblock %}
+{% block script %}
+  const filas = D.inflacion_gobierno.slice().reverse();   // el más reciente arriba
+  graficaReel("g", {
+    tooltip: { show: false },
+    grid: { left: 4, right: 110, top: 0, bottom: 0, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
+    xAxis: { type: "value", show: false, max: (v) => v.max * 1.05 },
+    yAxis: { type: "category", data: filas.map((r) => r.corto + "\n" + r.periodo_corto),
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { color: C.texto, fontSize: 27, fontWeight: 600, lineHeight: 34,
+        rich: {} } },
+    series: [{ type: "bar", data: filas.map((r) => r.inflacion), barWidth: "62%",
+      itemStyle: { color: C.acento, borderRadius: [0, 10, 10, 0] },
+      label: { show: true, position: "right", color: C.texto, fontSize: 30, fontWeight: 800,
+        formatter: (p) => fmt.pct(p.value, 1) },
+      animationDelay: (i) => (filas.length - 1 - i) * 140 }],
+  });
+{% endblock %}

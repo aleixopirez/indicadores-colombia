@@ -25,8 +25,10 @@
 #   docker compose run --rm spark-servir            # HDFS -> PostgreSQL
 #   Power BI: servidor localhost:5432, base indicadores, usuario lector / lector
 #
-# Los pasos siguientes (Hive, PostgreSQL, Airflow) se agregan a este mismo
-# archivo con sus propios perfiles.
+#   Paso 8 (Airflow orquesta todo lo anterior; ver PASO8_AIRFLOW.md):
+#   docker compose --profile todo create           # crea Kafka y HDFS (sin encenderlos)
+#   docker compose --profile airflow up -d --build # PostgreSQL + Airflow + Spark en reposo
+#   Interfaz de Airflow: http://localhost:8082
 # =============================================================================
 name: pipeline-indicadores
 
@@ -266,7 +268,7 @@ services:
   postgres:
     image: postgres:17
     container_name: postgres
-    profiles: ["postgres", "todo"]
+    profiles: ["postgres", "todo", "airflow"]
     environment:
       POSTGRES_DB: indicadores
       POSTGRES_USER: pipeline
@@ -284,7 +286,69 @@ services:
       retries: 20
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Paso 8 — Apache Airflow 3.3.2 en modo standalone (un solo contenedor:
+  # API/interfaz web, scheduler, dag-processor y triggerer). Su base de datos
+  # es "airflow", dentro del mismo PostgreSQL.
+  # Maneja a los demás contenedores con el socket de Docker: enciende Kafka y
+  # HDFS solo mientras se usan y lanza Spark dentro de "spark-tareas".
+  #   Interfaz web: http://localhost:8082 (sin usuario: es para uso local)
+  # ---------------------------------------------------------------------------
+  airflow:
+    build: ./airflow
+    image: pipeline-indicadores/airflow:3.3.2
+    container_name: airflow
+    profiles: ["airflow"]
+    user: "50000:0"           # usuario de Airflow, grupo root: permite usar el socket de Docker
+    command: ["bash", "-c", "python /opt/airflow/crear_bd.py && exec airflow standalone"]
+    env_file:
+      - path: .env            # GITHUB_TOKEN (opcional; ver env.ejemplo)
+        required: false
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://pipeline:pipeline@postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: America/Bogota
+      AIRFLOW__CORE__PARALLELISM: "4"
+      # Sin pantalla de inicio de sesión (solo para uso local en el PC)
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
+      TZ: America/Bogota
+      # El proyecto montado en /opt/proyecto y sus servicios por la red interna
+      PYTHONPATH: /opt/proyecto
+      RAW_DIR: /opt/proyecto/data/raw
+      SALIDA_VISUALIZACION: /opt/proyecto/salida
+      KAFKA_BOOTSTRAP: kafka:19092
+      WEBHDFS_URL: http://namenode:9870
+      DATANODE_PUBLICO: ""
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline
+    ports:
+      - "8082:8080"           # 8080 ya lo usa la interfaz de Kafka
+    volumes:
+      - .:/opt/proyecto
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/crear_bd.py:/opt/airflow/crear_bd.py:ro
+      - airflow-logs:/opt/airflow/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    mem_limit: 1500m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Spark en reposo: Airflow ejecuta aquí curar.py y servir.py (docker exec).
+  # Mientras no corre ningún trabajo casi no consume memoria.
+  spark-tareas:
+    <<: *spark-base
+    container_name: spark-tareas
+    profiles: ["airflow"]
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+
 volumes:
+  airflow-logs:
   postgres-data:
   kafka-data:
   hdfs-namenode:

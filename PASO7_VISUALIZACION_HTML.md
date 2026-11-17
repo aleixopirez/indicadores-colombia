@@ -72,7 +72,13 @@ cd C:\Users\aleix\Documents\pipeline-indicadores
 uv pip install jinja2 pg8000 playwright imageio-ffmpeg
 ```
 
-No hace falta `playwright install`: la captura usa **Microsoft Edge**, que ya viene con Windows. ffmpeg tampoco se instala aparte, lo trae `imageio-ffmpeg`.
+La captura usa **Microsoft Edge**, que ya viene con Windows: no hay que descargar navegador. Para **grabar video**, Playwright necesita además su propio ffmpeg (una sola vez, pocos MB):
+
+```powershell
+python -m playwright install ffmpeg
+```
+
+La conversión final a MP4 usa el ffmpeg que trae `imageio-ffmpeg`.
 
 ## 2. Encender PostgreSQL
 
@@ -148,5 +154,6 @@ python -m pytest -q tests/test_visualizacion.py
 |---|---|
 | `connection refused` al generar | Postgres apagado: `docker compose --profile postgres up -d`. |
 | `password authentication failed for user "lector"` | El rol se crea con `postgres/01_esquema.sql` (Paso 6). |
+| `Executable doesn't exist ... ffmpeg-win64.exe` | Falta el ffmpeg de Playwright para grabar: `python -m playwright install ffmpeg`. |
 | `Executable doesn't exist ... msedge` | Edge no está en la ruta estándar: `$env:NAVEGADOR_CAPTURA="chrome"` (si tiene Chrome) o `python -m playwright install chromium` y `$env:NAVEGADOR_CAPTURA="chromium"`. |
 | El MP4 no sube a la red | Ya sale en H.264 + yuv420p + faststart, 1080×1920 a 30 fps, que es lo que piden las tres redes. |

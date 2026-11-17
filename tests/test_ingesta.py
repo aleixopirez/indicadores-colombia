@@ -5,6 +5,7 @@ que las APIs reales. Ejecutar con:  python -m pytest -q
 import json
 
 import pytest
+import requests
 
 from ingesta import banco_mundial, config, trm
 
@@ -119,6 +120,24 @@ def test_banco_mundial_codigo_invalido_responde_200_con_mensaje():
         banco_mundial.ejecutar(
             paises=["COL"], anio_desde=2023, anio_hasta=2023,
             indicadores={"NO.EXISTE": "malo", "SL.UEM.TOTL.ZS": "desempleo_pct"},
-            sesion=SesionFalsa(manejador))
+            sesion=SesionFalsa(manejador), pausa_reintento=0)
     # el indicador bueno sí se guardó aunque el otro fallara
     assert list(config.RAW_DIR.glob("banco_mundial/desempleo_pct/*/*.jsonl"))
+
+
+def test_banco_mundial_reintenta_los_que_fallaron():
+    """Una caída momentánea (503) se recupera en el segundo intento."""
+    cod = "FP.CPI.TOTL.ZG"
+    llamadas = {"n": 0}
+
+    def manejador(url, p):
+        llamadas["n"] += 1
+        if llamadas["n"] == 1:
+            raise requests.ConnectionError("503 momentáneo")
+        return RespuestaFalsa([{"page": 1, "pages": 1}, [fila_bm(cod, "COL", 2025, 5.1)]])
+
+    archivos = banco_mundial.ejecutar(
+        anio_desde=2025, anio_hasta=2025, paises=["COL"],
+        indicadores={cod: "inflacion_anual_pct"}, sesion=SesionFalsa(manejador),
+        pausa_reintento=0)
+    assert len(archivos) == 1 and llamadas["n"] == 2

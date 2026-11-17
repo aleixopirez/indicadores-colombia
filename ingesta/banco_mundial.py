@@ -40,7 +40,7 @@ def extraer_indicador(sesion: requests.Session, paises: List[str],
             "per_page": config.BM_TAMANO_PAGINA,
             "page": pagina,
         }
-        resp = sesion.get(url, params=params, timeout=config.HTTP_TIMEOUT)
+        resp = sesion.get(url, params=params, timeout=config.BM_TIMEOUT)
         resp.raise_for_status()
         datos = resp.json()
 
@@ -60,8 +60,28 @@ def ejecutar(anio_desde: int = config.BM_ANIO_DESDE,
              anio_hasta: Optional[int] = None,
              indicadores: Optional[dict] = None,
              paises: Optional[List[str]] = None,
-             sesion: Optional[requests.Session] = None):
-    """Extrae cada indicador y lo guarda en su propia carpeta (dataset)."""
+             sesion: Optional[requests.Session] = None,
+             pausa_reintento: Optional[float] = None):
+    """Extrae cada indicador y lo guarda en su propia carpeta (dataset).
+    Los indicadores que fallen se reintentan una vez más al final, tras una
+    pausa: la API del Banco Mundial suele tener caídas cortas (error 503)."""
+    import time
+    indicadores = indicadores or config.INDICADORES_BM
+    pausa = config.BM_PAUSA_REINTENTO if pausa_reintento is None else pausa_reintento
+    archivos, fallidos = _ejecutar_una_vez(anio_desde, anio_hasta, indicadores, paises, sesion)
+    if fallidos:
+        log.warning("Reintentando %d indicador(es) en %d s: %s", len(fallidos), pausa, fallidos)
+        time.sleep(pausa)
+        pendientes = {c: indicadores[c] for c in fallidos}
+        nuevos, fallidos = _ejecutar_una_vez(anio_desde, anio_hasta, pendientes, paises, sesion)
+        archivos += nuevos
+    if fallidos:
+        # Que la ejecución termine en error para que Airflow lo marque.
+        raise RuntimeError(f"Indicadores con error: {fallidos}")
+    return archivos
+
+
+def _ejecutar_una_vez(anio_desde, anio_hasta, indicadores, paises, sesion):
     from datetime import date
     anio_hasta = anio_hasta or date.today().year
     indicadores = indicadores or config.INDICADORES_BM
@@ -93,7 +113,4 @@ def ejecutar(anio_desde: int = config.BM_ANIO_DESDE,
                         "anio_desde": anio_desde, "anio_hasta": anio_hasta},
         ))
 
-    if fallidos:
-        # Que la ejecución termine en error para que Airflow lo marque (Paso 6).
-        raise RuntimeError(f"Indicadores con error: {fallidos}")
-    return archivos
+    return archivos, fallidos

@@ -5,6 +5,7 @@ Proyecto de pipeline de datos que nos muestra, en la capa de consumo, indicadore
 **Dashboard en línea:** https://aleixopirez.github.io/indicadores-colombia/
 
 ```
+[Airflow orquesta todo]
 APIs de datos abiertos ─► Ingesta (Python) ─► Apache Kafka ─► HDFS ─► PySpark ─► Hive
                                                                         │
                                                                         ▼
@@ -28,6 +29,7 @@ APIs de datos abiertos ─► Ingesta (Python) ─► Apache Kafka ─► HDFS �
 | 5 | Tablas y consultas en Hive | [PASO5_HIVE.md](PASO5_HIVE.md) |
 | 6 | Zona de servicio en PostgreSQL y Power BI | [PASO6_POSTGRES_POWERBI.md](PASO6_POSTGRES_POWERBI.md) · [PASO6B_DASHBOARD.md](PASO6B_DASHBOARD.md) |
 | 7 | Dashboard HTML y reels para redes sociales | [PASO7_VISUALIZACION_HTML.md](PASO7_VISUALIZACION_HTML.md) |
+| 8 | Orquestación diaria con Apache Airflow | [PASO8_AIRFLOW.md](PASO8_AIRFLOW.md) |
 
 ## Estructura
 
@@ -40,6 +42,8 @@ hive/             Paso 5: tablas externas y consultas
 postgres/         Paso 6: esquema de la zona de servicio
 powerbi/          Tema, medidas DAX y guía del dashboard ejecutivo
 visualizacion/    Paso 7: dashboard HTML y reels (Plotly / ECharts)
+airflow/          Paso 8: DAG diario e imagen de Airflow
+orquestacion/     Paso 8: funciones que usa el DAG (contenedores, GitHub)
 referencia/       Períodos presidenciales de Colombia (1986–2030)
 docs/             Página publicada en GitHub Pages
 tests/            Pruebas (pytest)
@@ -56,10 +60,27 @@ python -m visualizacion generar
 python -m visualizacion publicar     # copia el dashboard a docs/index.html
 ```
 
+## Actualizar con datos recientes
+
+**Automático:** Airflow corre todo el pipeline cada día a las 7:00 a. m. y publica el dashboard ([PASO8_AIRFLOW.md](PASO8_AIRFLOW.md)).
+
+**A mano:**
+
+Un solo comando recorre el pipeline (ingesta → Kafka → HDFS → PySpark → PostgreSQL → HTML) y publica el dashboard en GitHub Pages:
+
+```powershell
+.\actualizar.ps1                    # últimos 45 días
+.\actualizar.ps1 -Desde 2026-10-01  # desde una fecha
+.\actualizar.ps1 -Reels             # además genera los reels PNG/MP4
+.\actualizar.ps1 -SinPublicar       # sin git push
+```
+
+Necesita Docker Desktop abierto. Al final deja encendido solo PostgreSQL, para que Power BI pueda actualizarse.
+
 ## Nota metodológica
 
 Cada año se asigna al gobierno en el cargo el 1 de julio. Los indicadores dependen también del contexto económico mundial, no solo del gobierno. La tasa de política monetaria la fija la Junta Directiva del Banco de la República, independiente del Gobierno.
 
 ## Herramientas
 
-Python · Apache Kafka · Apache Hadoop (HDFS) · Apache Spark (PySpark) · Apache Hive · PostgreSQL · Docker · Plotly.js · Apache ECharts · Power BI
+Python · Apache Airflow · Apache Kafka · Apache Hadoop (HDFS) · Apache Spark (PySpark) · Apache Hive · PostgreSQL · Docker · Plotly.js · Apache ECharts · Power BI

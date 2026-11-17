@@ -69,6 +69,7 @@ def contexto(d: dict, motor: str = "plotly") -> dict:
         "reel": config.REEL,
         "duracion_ms": config.DURACION_REEL_MS,
         "nota": d["nota"],
+        "autor": config.AUTOR,
         "anio_corte": d["fecha_corte"][:4],
         "n_gobiernos": len(d["gobiernos"]),
         "primero": d["inflacion_gobierno"][0]["periodo"][:4] if d["inflacion_gobierno"] else "",

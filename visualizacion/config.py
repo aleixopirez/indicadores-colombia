@@ -48,3 +48,6 @@ NOTA_METODOLOGICA = (
 # Librería de gráficas por defecto ("plotly" o "echarts"). La elegida escribe en
 # salida/; la otra, si se pide con --motor, en salida/<motor>/.
 MOTOR = os.environ.get("MOTOR_VISUALIZACION", "plotly")
+
+# Autor que aparece al final del dashboard ("Elaborado por ...")
+AUTOR = os.environ.get("AUTOR_DASHBOARD", "Aleixo Eder Pineda, Electronic Engineer · Big Data Specialist")

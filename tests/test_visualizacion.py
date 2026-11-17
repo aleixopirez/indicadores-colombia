@@ -91,6 +91,7 @@ def test_generar_con_plotly(tablas, tmp_path):
     dash = (tmp_path / "plotly" / "dashboard.html").read_text(encoding="utf-8")
     assert "Plotly.register(module.exports)" in dash and "Plotly.newPlot" in dash
     assert "echarts.init" not in dash and "(Plotly.js)" in dash
+    assert "Elaborado por:</b> Aleixo Eder Pineda, Electronic Engineer · Big Data Specialist" in dash
     reel = (tmp_path / "plotly" / "reels" / "03_dolar_historia.html").read_text(encoding="utf-8")
     assert "El dólar a través de" in reel and "franjasGobierno" in reel
 

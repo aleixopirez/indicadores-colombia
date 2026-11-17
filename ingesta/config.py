@@ -46,6 +46,8 @@ INDICADORES_BM = {
 # Rango por defecto: desde 1990 permite comparar varios gobiernos.
 BM_ANIO_DESDE = 1990
 BM_TAMANO_PAGINA = 1000
+BM_TIMEOUT = 90            # la API del Banco Mundial a veces tarda más de 30 s
+BM_PAUSA_REINTENTO = 60    # segundos antes de reintentar los indicadores que fallaron
 
 # ---------------------------------------------------------------------------
 # Fuente 3: Banco de la República — servicio web SDMX (sin llave)

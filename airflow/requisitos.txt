@@ -1,0 +1,5 @@
+# Librerías del proyecto que usan las tareas de Airflow (requests y jinja2 ya vienen)
+kafka-python>=2.3,<3
+pg8000>=1.31
+# SDK de Docker: encender/apagar Kafka y HDFS y lanzar Spark desde Airflow
+docker>=7.1
